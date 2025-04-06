@@ -1026,6 +1026,33 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
       clearInterval(intervalId);
     });
   });
+  //MOVIL
+  app.post('/empleados/login', async (req, res) => {
+    const { correo, contrasenia } = req.body;
+  
+    try {
+      const [rows] = await db.execute('SELECT * FROM empleados WHERE correo = ?', [correo]);
+  
+      if (rows.length === 0) {
+        return res.status(401).json({ message: 'Correo no encontrado' });
+      }
+  
+      const empleado = rows[0];
+      const validPassword = await bcrypt.compare(contrasenia, empleado.contrasenia);
+  
+      if (!validPassword) {
+        return res.status(401).json({ message: 'Contraseña incorrecta' });
+      }
+  
+      const token = jwt.sign({ id: empleado.id, tipo: 'empleado' }, 'tu_secreto', {
+        expiresIn: '1d',
+      });
+  
+      res.json({ token, tipo: 'empleado', id: empleado.id });
+    } catch (error) {
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
   
   
   
