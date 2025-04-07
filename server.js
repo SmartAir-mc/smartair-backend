@@ -1056,13 +1056,59 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
           expiresIn: "3h",
         });
   
-        res.json({ token, tipo: "empleado", id: empleado.id });
+        // ✅ Eliminar sesiones anteriores (si existen)
+        pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
+          if (err) {
+            console.error("Error al limpiar sesiones anteriores:", err);
+          }
+  
+          // ✅ Guardar nueva sesión en tabla 'sesiones'
+          pool.query(
+            "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
+            [empleado.id, token],
+            (err) => {
+              if (err) {
+                console.error("Error al guardar sesión de empleado:", err);
+                return res.status(500).json({ mensaje: "Error al guardar sesión" });
+              }
+  
+              res.json({ token, tipo: "empleado", id: empleado.id });
+            }
+          );
+        });
       });
     } catch (error) {
       console.error("Error en login:", error);
       return res.status(500).json({ mensaje: "Error interno del servidor" });
     }
   });
+  // 🔐 Cerrar sesión para empleados (elimina sesión de la tabla)
+app.post("/empleados/logout", async (req, res) => {
+  const { id, token } = req.body;
+
+  if (!id || !token) {
+    return res.status(400).json({ mensaje: "ID y token requeridos" });
+  }
+
+  try {
+    pool.query(
+      "DELETE FROM sesiones WHERE empleado_id = ? AND token = ?",
+      [id, token],
+      (err, result) => {
+        if (err) {
+          console.error("Error al cerrar sesión:", err);
+          return res.status(500).json({ mensaje: "Error al cerrar sesión" });
+        }
+
+        res.json({ mensaje: "Sesión de empleado cerrada correctamente" });
+      }
+    );
+  } catch (error) {
+    console.error("Error en logout:", error);
+    return res.status(500).json({ mensaje: "Error interno del servidor" });
+  }
+});
+
   
   
   
