@@ -1114,6 +1114,7 @@ app.post("/empleados/logout", async (req, res) => {
   
   
 // **Iniciar servidor**
-server.listen(5000, () => {
-  console.log('✅ Servidor con Socket.IO corriendo en http://localhost:5000');
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`✅ Servidor con Socket.IO corriendo en el puerto ${PORT}`);
 });
