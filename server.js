@@ -1027,30 +1027,36 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
     });
   });
   //MOVIL
-  app.post('/empleados/login', async (req, res) => {
+  app.post("/empleados/login", async (req, res) => {
     const { correo, contrasenia } = req.body;
   
+    if (!correo || !contrasenia) {
+      return res.status(400).json({ mensaje: "Faltan datos" });
+    }
+  
     try {
-      const [rows] = await db.execute('SELECT * FROM empleados WHERE correo = ?', [correo]);
+      const [rows] = await connection.query("SELECT * FROM empleados WHERE correo = ?", [correo]);
   
       if (rows.length === 0) {
-        return res.status(401).json({ message: 'Correo no encontrado' });
+        return res.status(401).json({ mensaje: "Empleado no encontrado" });
       }
   
       const empleado = rows[0];
-      const validPassword = await bcrypt.compare(contrasenia, empleado.contrasenia);
   
-      if (!validPassword) {
-        return res.status(401).json({ message: 'Contraseña incorrecta' });
+      const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
+  
+      if (!passwordMatch) {
+        return res.status(401).json({ mensaje: "Contraseña incorrecta" });
       }
   
-      const token = jwt.sign({ id: empleado.id, tipo: 'empleado' }, 'tu_secreto', {
-        expiresIn: '1d',
+      const token = jwt.sign({ id: empleado.id, tipo: "empleado" }, process.env.JWT_SECRET, {
+        expiresIn: "3h",
       });
   
-      res.json({ token, tipo: 'empleado', id: empleado.id });
+      return res.json({ token, tipo: "empleado", id: empleado.id });
     } catch (error) {
-      res.status(500).json({ error: 'Error interno del servidor' });
+      console.error("Error en login:", error);
+      return res.status(500).json({ mensaje: "Error interno del servidor" });
     }
   });
   
