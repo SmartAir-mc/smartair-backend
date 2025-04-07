@@ -1040,47 +1040,30 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
           console.error("Error en login:", err);
           return res.status(500).json({ mensaje: "Error en login" });
         }
-      
+  
         if (results.length === 0) {
           return res.status(401).json({ mensaje: "Empleado no encontrado" });
         }
-      
+  
         const empleado = results[0];
         const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
-      
+  
         if (!passwordMatch) {
           return res.status(401).json({ mensaje: "Contraseña incorrecta" });
         }
-      
+  
         const token = jwt.sign({ id: empleado.id, tipo: "empleado" }, process.env.JWT_SECRET || "secreto", {
           expiresIn: "3h",
         });
-      
+  
         res.json({ token, tipo: "empleado", id: empleado.id });
       });
-        
-      if (rows.length === 0) {
-        return res.status(401).json({ mensaje: "Empleado no encontrado" });
-      }
-  
-      const empleado = rows[0];
-  
-      const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
-  
-      if (!passwordMatch) {
-        return res.status(401).json({ mensaje: "Contraseña incorrecta" });
-      }
-  
-      const token = jwt.sign({ id: empleado.id, tipo: "empleado" }, process.env.JWT_SECRET, {
-        expiresIn: "3h",
-      });
-  
-      return res.json({ token, tipo: "empleado", id: empleado.id });
     } catch (error) {
       console.error("Error en login:", error);
       return res.status(500).json({ mensaje: "Error interno del servidor" });
     }
   });
+  
   
   
   
