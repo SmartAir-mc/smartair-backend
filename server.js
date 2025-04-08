@@ -721,7 +721,7 @@ app.post("/api/venta-final", (req, res) => {
                     });
                   }
 
-                  res.json({ message: "Venta registrada exitosamente", id_venta: idVenta });
+                  res.json({ message: "Venta registrada", id_venta: idVenta });
                 });
               }
             );
