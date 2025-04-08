@@ -649,6 +649,13 @@ app.post("/api/paypal/capture-order", async (req, res) => {
 app.post("/api/venta-final", (req, res) => {
   const { id_usuario, direccion } = req.body;
 
+  console.log("📥 Datos recibidos:");
+  console.log("ID usuario:", id_usuario);
+  console.log("Dirección:", direccion);
+
+  if (!id_usuario || !direccion) {
+    return res.status(400).json({ message: "Faltan datos obligatorios" });
+  }
   if (!id_usuario || !direccion) {
     return res.status(400).json({ message: "Faltan datos obligatorios" });
   }
