@@ -697,10 +697,12 @@ app.post("/api/venta-final", (req, res) => {
           ],
           (err, result) => {
             if (err) {
+              console.error("❌ Error al guardar venta:", err);
               return db.rollback(() => {
-                res.status(500).json({ message: "Error al guardar venta" });
+                return res.status(500).json({ message: "Error al guardar venta" });
               });
             }
+            
 
             const idVenta = result.insertId;
 
