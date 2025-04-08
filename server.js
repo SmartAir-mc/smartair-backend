@@ -651,11 +651,10 @@ app.post("/api/venta-final", (req, res) => {
 
   console.log("📥 Datos recibidos:");
   console.log("ID usuario:", id_usuario);
-  console.log("Dirección:", direccion);
+  Object.entries(direccion || {}).forEach(([key, val]) =>
+    console.log(`   ${key}:`, val)
+  );
 
-  if (!id_usuario || !direccion) {
-    return res.status(400).json({ message: "Faltan datos obligatorios" });
-  }
   if (!id_usuario || !direccion) {
     return res.status(400).json({ message: "Faltan datos obligatorios" });
   }
@@ -692,17 +691,16 @@ app.post("/api/venta-final", (req, res) => {
             d.cp || "",
             d.municipio || "",
             d.estado || "",
-            d.latitud || null,
-            d.longitud || null,
+            d.latitud !== null && d.latitud !== undefined ? d.latitud : 0,
+            d.longitud !== null && d.longitud !== undefined ? d.longitud : 0,
           ],
           (err, result) => {
             if (err) {
               console.error("❌ Error al guardar venta:", err);
               return db.rollback(() => {
-                return res.status(500).json({ message: "Error al guardar venta" });
+                res.status(500).json({ message: "Error al guardar venta" });
               });
             }
-            
 
             const idVenta = result.insertId;
 
@@ -733,6 +731,7 @@ app.post("/api/venta-final", (req, res) => {
     );
   });
 });
+
 
 // REPORTES
 
