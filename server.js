@@ -691,8 +691,8 @@ app.post("/api/venta-final", (req, res) => {
             d.cp || "",
             d.municipio || "",
             d.estado || "",
-            d.latitud !== null && d.latitud !== undefined ? d.latitud : 0,
-            d.longitud !== null && d.longitud !== undefined ? d.longitud : 0,
+            isNaN(parseFloat(d.latitud)) ? null : parseFloat(d.latitud),
+            isNaN(parseFloat(d.longitud)) ? null : parseFloat(d.longitud),
           ],
           (err, result) => {
             if (err) {
