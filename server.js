@@ -375,7 +375,7 @@ app.delete("/productos/:id", (req, res) => {
 
 
   //Gestion de Empleados
-// Obtener empleados
+// ✅ Obtener empleados por cliente
 app.get("/empleados/:id_cliente", (req, res) => {
   const { id_cliente } = req.params;
 
@@ -385,18 +385,18 @@ app.get("/empleados/:id_cliente", (req, res) => {
   });
 });
 
-// Agregar nuevo empleado
+// ✅ Agregar nuevo empleado
 app.post("/empleados", async (req, res) => {
-  const { nombre, correo, NumSer, contrasenia, id_cliente } = req.body;
+  const { nombre, correo, NumSer, contrasenia, id_cliente, telefono } = req.body;
 
-  console.log("📥 Datos recibidos al crear empleado:");
+  console.log("📥 Registrando empleado:");
   console.log("Nombre:", nombre);
   console.log("Correo:", correo);
   console.log("NumSer:", NumSer);
-  console.log("Contraseña:", contrasenia);
-  console.log("ID del cliente:", id_cliente); // 👈 ESTE es el importante
+  console.log("Teléfono:", telefono);
+  console.log("ID del cliente:", id_cliente);
 
-  // Validar que NumSer no exista ya
+  // Verifica si el NumSer ya existe
   db.query("SELECT * FROM empleados WHERE NumSer = ?", [NumSer], async (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
 
@@ -407,8 +407,8 @@ app.post("/empleados", async (req, res) => {
     const hashedPassword = await bcrypt.hash(contrasenia, 10);
 
     db.query(
-      "INSERT INTO empleados (nombre, correo, NumSer, contrasenia, id_cliente) VALUES (?, ?, ?, ?, ?)",
-      [nombre, correo, NumSer, hashedPassword, id_cliente],
+      "INSERT INTO empleados (nombre, correo, NumSer, contrasenia, id_cliente, telefono) VALUES (?, ?, ?, ?, ?, ?)",
+      [nombre, correo, NumSer, hashedPassword, id_cliente, telefono],
       (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: "Empleado registrado correctamente", id: result.insertId });
@@ -417,20 +417,18 @@ app.post("/empleados", async (req, res) => {
   });
 });
 
-
-
-// Actualizar empleado
+// ✅ Actualizar empleado
 app.put("/empleados/:id", async (req, res) => {
   const { id } = req.params;
-  const { nombre, correo, NumSer, contrasenia } = req.body;
+  const { nombre, correo, NumSer, contrasenia, telefono } = req.body;
 
   if (contrasenia && contrasenia.trim() !== "") {
-    // Si se proporcionó nueva contraseña, encriptar y actualizar todo
+    // Con nueva contraseña
     const hashedPassword = await bcrypt.hash(contrasenia, 10);
 
     db.query(
-      "UPDATE empleados SET nombre = ?, correo = ?, NumSer = ?, contrasenia = ? WHERE id = ?",
-      [nombre, correo, NumSer, hashedPassword, id],
+      "UPDATE empleados SET nombre = ?, correo = ?, NumSer = ?, contrasenia = ?, telefono = ? WHERE id = ?",
+      [nombre, correo, NumSer, hashedPassword, telefono, id],
       (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
         if (result.affectedRows === 0)
@@ -439,22 +437,21 @@ app.put("/empleados/:id", async (req, res) => {
       }
     );
   } else {
-    // Si no se proporciona nueva contraseña, actualizar sin modificarla
+    // Sin nueva contraseña
     db.query(
-      "UPDATE empleados SET nombre = ?, correo = ?, NumSer = ? WHERE id = ?",
-      [nombre, correo, NumSer, id],
+      "UPDATE empleados SET nombre = ?, correo = ?, NumSer = ?, telefono = ? WHERE id = ?",
+      [nombre, correo, NumSer, telefono, id],
       (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
         if (result.affectedRows === 0)
           return res.status(404).json({ error: "Empleado no encontrado" });
-        res.json({ message: "Empleado actualizado sin cambiar la contraseña" });
+        res.json({ message: "Empleado actualizado sin cambiar contraseña" });
       }
     );
   }
 });
 
-
-// Eliminar empleado
+// ✅ Eliminar empleado
 app.delete("/empleados/:id", (req, res) => {
   const { id } = req.params;
 
@@ -462,9 +459,31 @@ app.delete("/empleados/:id", (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (result.affectedRows === 0)
       return res.status(404).json({ error: "Empleado no encontrado" });
-    res.json({ message: "Empleado eliminado" });
+    res.json({ message: "Empleado eliminado correctamente" });
   });
 });
+// Ruta para obtener el número de celular por número de serie
+app.get('/empleados/telefono/:numser', (req, res) => {
+  const { numser } = req.params;
+  db.query("SELECT telefono FROM empleados WHERE NumSer = ?", [numser], (err, results) => {
+    if (err) return res.status(500).json({ error: "Error al buscar teléfono" });
+    if (results.length === 0) return res.status(404).json({ error: "No se encontró el número de serie" });
+    res.json({ telefono: results[0].telefono });
+  });
+});
+// ✅ Nueva ruta para obtener datos por número de serie
+app.get('/api/iot/datos/:numser', async (req, res) => {
+  const { numser } = req.params;
+  try {
+    const datos = await Temperatura.find({ numSer: numser }).sort({ fecha: -1 }).limit(30);
+    res.json(datos);
+  } catch (err) {
+    console.error("❌ Error al obtener datos por NumSer:", err);
+    res.status(500).json({ error: "Error al obtener datos por dispositivo" });
+  }
+});
+
+
 //Ecomerce
 //home
 //sessiones
