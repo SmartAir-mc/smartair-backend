@@ -367,11 +367,19 @@ app.put("/productos/:id", upload.single("imagen"), (req, res) => {
 // Eliminar un producto
 app.delete("/productos/:id", (req, res) => {
   const { id } = req.params;
-  db.query("DELETE FROM producto WHERE id = ?", [id], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: "Producto eliminado" });
+
+  // 1. Eliminar primero del carrito (relaciones)
+  db.query("DELETE FROM carrito WHERE id_prod = ?", [id], (err) => {
+    if (err) return res.status(500).json({ error: "Error al eliminar producto del carrito." });
+
+    // 2. Luego eliminar de la tabla producto
+    db.query("DELETE FROM producto WHERE id = ?", [id], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: "Producto eliminado correctamente, incluyendo del carrito." });
+    });
   });
 });
+
 
 
   //Gestion de Empleados
@@ -482,6 +490,22 @@ app.get('/api/iot/datos/:numser', async (req, res) => {
     res.status(500).json({ error: "Error al obtener datos por dispositivo" });
   }
 });
+//
+app.get("/api/iot/por-numser/:numser", async (req, res) => {
+  const { numser } = req.params;
+  const empleado = await new Promise((resolve, reject) => {
+    db.query("SELECT * FROM empleados WHERE NumSer = ?", [numser], (err, results) => {
+      if (err || results.length === 0) return resolve(null);
+      resolve(results[0]);
+    });
+  });
+
+  if (!empleado) return res.status(404).json({ message: "Empleado no encontrado" });
+
+  const datos = await Temperatura.find().sort({ fecha: -1 }).limit(15); // Aquí puedes filtrar por NumSer si lo guardas
+  res.json(datos);
+});
+
 
 
 //Ecomerce
