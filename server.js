@@ -904,268 +904,282 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
   });
 });
 
-  //mongo DB
-  // --- Modelo de MongoDB ---
+    //mongo DB
+    // --- Modelo de MongoDB ---
 
-  const TemperaturaSchema = new mongoose.Schema({
-    temperatura: Number,
-    humedad: Number,
-    lluvia: Boolean,
-    humo: Boolean,
-    fecha: { type: Date, default: Date.now }
-  });
-  // WebSocket: Emitir temperatura actual cada 5s
-  io.on("connection", (socket) => {
-    console.log("📡 Cliente conectado a WebSocket");
-  
-    const intervalId = setInterval(async () => {
-      const lastTemp = await Temperatura.findOne().sort({ fecha: -1 });
-  
-      if (lastTemp) {
-        socket.emit("newTemperature", {
-          temperatura: lastTemp.temperatura,
-          humedad: lastTemp.humedad,
-          lluvia: lastTemp.lluvia,
-          humo: lastTemp.humo,
-          fecha: lastTemp.fecha,
-        });
-      }
-    }, 5000);
-  
-    socket.on("disconnect", () => {
-      console.log("❌ Cliente desconectado");
-      clearInterval(intervalId);
+    const TemperaturaSchema = new mongoose.Schema({
+      temperatura: Number,
+      humedad: Number,
+      lluvia: Boolean,
+      humo: Boolean,
+      NumSer: String,
+      fecha: { type: Date, default: Date.now }
     });
-  });
-  
-
-
-  const Temperatura = mongoose.model("Temperatura", TemperaturaSchema);
-
-  // --- Guardar datos desde IoT ---
-  app.post("/api/iot/temperatura", async (req, res) => {
-  const { temperatura, humedad, lluvia, humo } = req.body;
-
-  try {
-    const nuevoDato = new Temperatura({ temperatura, humedad, lluvia, humo });
-    await nuevoDato.save();
-
-    // ⚠️ Emitimos inmediatamente a todos los clientes conectados
-    io.emit("newTemperature", {
-      temperatura,
-      humedad,
-      lluvia,
-      humo,
-      fecha: nuevoDato.fecha
-    });
-
-    res.json({ message: "Datos guardados en MongoDB" });
-  } catch (error) {
-    console.error("Error al guardar en MongoDB:", error);
-    res.status(500).json({ message: "Error al guardar en MongoDB" });
-  }
-});
-
-
-  // --- Reporte temperatura diaria promedio ---
-  app.get("/api/reportes/temperatura-dia", async (req, res) => {
-    try {
-      const datos = await Temperatura.aggregate([
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$fecha" } },
-            temperatura: { $avg: "$temperatura" },
-          },
-        },
-        { $sort: { _id: -1 } },
-        { $limit: 30 },
-      ]);
-
-      const formateado = datos.map((r) => ({
-        dia: r._id,
-        temperatura: Math.round(r.temperatura * 10) / 10,
-      }));
-
-      res.json(formateado.reverse());
-    } catch (err) {
-      res.status(500).json({ error: "Error en el reporte de temperatura" });
-    }
-  });
-
-  // --- Reporte humedad diaria promedio ---
-  app.get("/api/reportes/humedad-dia", async (req, res) => {
-    try {
-      const datos = await Temperatura.aggregate([
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$fecha" } },
-            humedad: { $avg: "$humedad" },
-          },
-        },
-        { $sort: { _id: -1 } },
-        { $limit: 30 },
-      ]);
-
-      const formateado = datos.map((r) => ({
-        dia: r._id,
-        humedad: Math.round(r.humedad * 10) / 10,
-      }));
-
-      res.json(formateado.reverse());
-    } catch (err) {
-      res.status(500).json({ error: "Error en el reporte de humedad" });
-    }
-  });
-
-  // --- Reporte de detecciones de humo o lluvia ---
-  app.get("/api/reportes/detecciones", async (req, res) => {
-    try {
-      const datos = await Temperatura.aggregate([
-        {
-          $project: {
-            fecha: { $dateToString: { format: "%Y-%m-%d", date: "$fecha" } },
-            lluvia: 1,
-            humo: 1
-          }
-        },
-        {
-          $group: {
-            _id: "$fecha",
-            lluvias: { $sum: { $cond: ["$lluvia", 1, 0] } },
-            humos: { $sum: { $cond: ["$humo", 1, 0] } }
-          }
-        },
-        { $sort: { _id: -1 } },
-        { $limit: 30 }
-      ]);
-
-      res.json(datos.reverse());
-    } catch (err) {
-      res.status(500).json({ error: "Error al obtener reporte de detecciones" });
-    }
-  });
-
-  // --- Últimas detecciones (para notificaciones) ---
-  app.get("/api/notificaciones", async (req, res) => {
-    try {
-      const ultimos = await Temperatura.find({
-        $or: [{ lluvia: true }, { humo: true }]
-      })
-        .sort({ fecha: -1 })
-        .limit(10);
-
-      const mensajes = ultimos.map((d) => ({
-        mensaje: d.lluvia ? "🌧️ Lluvia detectada" : d.humo ? "🔥 Humo detectado" : "",
-        fecha: d.fecha
-      }));
-
-      res.json(mensajes);
-    } catch (err) {
-      res.status(500).json({ error: "Error al obtener notificaciones" });
-    }
-  });
-  io.on("connection", (socket) => {
-    console.log("📡 Cliente conectado a WebSocket");
-  
-    const intervalId = setInterval(async () => {
-      const lastTemp = await Temperatura.findOne().sort({ fecha: -1 });
-      socket.emit("newTemperature", lastTemp);
-    }, 5000);
-  
-    socket.on("disconnect", () => {
-      console.log("❌ Cliente desconectado");
-      clearInterval(intervalId);
-    });
-  });
-  //MOVIL
-  app.post("/empleados/login", async (req, res) => {
-    const { correo, contrasenia } = req.body;
-  
-    if (!correo || !contrasenia) {
-      return res.status(400).json({ mensaje: "Faltan datos" });
-    }
-  
-    try {
-      pool.query("SELECT * FROM empleados WHERE correo = ?", [correo], async (err, results) => {
-        if (err) {
-          console.error("Error en login:", err);
-          return res.status(500).json({ mensaje: "Error en login" });
+    // WebSocket: Emitir temperatura actual cada 5s
+    io.on("connection", (socket) => {
+      console.log("📡 Cliente conectado a WebSocket");
+    
+      const intervalId = setInterval(async () => {
+        const lastTemp = await Temperatura.findOne().sort({ fecha: -1 });
+    
+        if (lastTemp) {
+          socket.emit("newTemperature", {
+            temperatura: lastTemp.temperatura,
+            humedad: lastTemp.humedad,
+            lluvia: lastTemp.lluvia,
+            humo: lastTemp.humo,
+            fecha: lastTemp.fecha,
+          });
         }
-  
-        if (results.length === 0) {
-          return res.status(401).json({ mensaje: "Empleado no encontrado" });
-        }
-  
-        const empleado = results[0];
-        const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
-  
-        if (!passwordMatch) {
-          return res.status(401).json({ mensaje: "Contraseña incorrecta" });
-        }
-  
-        const token = jwt.sign({ id: empleado.id, tipo: "empleado" }, process.env.JWT_SECRET || "secreto", {
-          expiresIn: "3h",
-        });
-  
-        // ✅ Eliminar sesiones anteriores (si existen)
-        pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
-          if (err) {
-            console.error("Error al limpiar sesiones anteriores:", err);
-          }
-  
-          // ✅ Guardar nueva sesión en tabla 'sesiones'
-          pool.query(
-            "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
-            [empleado.id, token],
-            (err) => {
-              if (err) {
-                console.error("Error al guardar sesión de empleado:", err);
-                return res.status(500).json({ mensaje: "Error al guardar sesión" });
-              }
-  
-              res.json({ token, tipo: "empleado", id: empleado.id });
-            }
-          );
-        });
+      }, 5000);
+    
+      socket.on("disconnect", () => {
+        console.log("❌ Cliente desconectado");
+        clearInterval(intervalId);
       });
+    });
+    
+
+
+    const Temperatura = mongoose.model("Temperatura", TemperaturaSchema);
+
+    // --- Guardar datos desde IoT ---
+    app.post("/api/iot/temperatura", async (req, res) => {
+      const { temperatura, humedad, lluvia, humo, NumSer } = req.body;
+    
+      try {
+        const nuevoDato = new Temperatura({ temperatura, humedad, lluvia, humo, NumSer });
+        await nuevoDato.save();
+    
+        // Enviar por WebSocket también con NumSer
+        io.emit("newTemperature", {
+          temperatura,
+          humedad,
+          lluvia,
+          humo,
+          NumSer,
+          fecha: nuevoDato.fecha
+        });
+    
+        res.json({ message: "Datos guardados en MongoDB" });
+      } catch (error) {
+        console.error("Error al guardar en MongoDB:", error);
+        res.status(500).json({ message: "Error al guardar en MongoDB" });
+      }
+    });
+    
+
+
+    // --- Reporte temperatura diaria promedio ---
+    app.get("/api/reportes/temperatura-dia", async (req, res) => {
+      try {
+        const datos = await Temperatura.aggregate([
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$fecha" } },
+              temperatura: { $avg: "$temperatura" },
+            },
+          },
+          { $sort: { _id: -1 } },
+          { $limit: 30 },
+        ]);
+
+        const formateado = datos.map((r) => ({
+          dia: r._id,
+          temperatura: Math.round(r.temperatura * 10) / 10,
+        }));
+
+        res.json(formateado.reverse());
+      } catch (err) {
+        res.status(500).json({ error: "Error en el reporte de temperatura" });
+      }
+    });
+
+    // --- Reporte humedad diaria promedio ---
+    app.get("/api/reportes/humedad-dia", async (req, res) => {
+      try {
+        const datos = await Temperatura.aggregate([
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$fecha" } },
+              humedad: { $avg: "$humedad" },
+            },
+          },
+          { $sort: { _id: -1 } },
+          { $limit: 30 },
+        ]);
+
+        const formateado = datos.map((r) => ({
+          dia: r._id,
+          humedad: Math.round(r.humedad * 10) / 10,
+        }));
+
+        res.json(formateado.reverse());
+      } catch (err) {
+        res.status(500).json({ error: "Error en el reporte de humedad" });
+      }
+    });
+
+    // --- Reporte de detecciones de humo o lluvia ---
+    app.get("/api/reportes/detecciones", async (req, res) => {
+      try {
+        const datos = await Temperatura.aggregate([
+          {
+            $project: {
+              fecha: { $dateToString: { format: "%Y-%m-%d", date: "$fecha" } },
+              lluvia: 1,
+              humo: 1
+            }
+          },
+          {
+            $group: {
+              _id: "$fecha",
+              lluvias: { $sum: { $cond: ["$lluvia", 1, 0] } },
+              humos: { $sum: { $cond: ["$humo", 1, 0] } }
+            }
+          },
+          { $sort: { _id: -1 } },
+          { $limit: 30 }
+        ]);
+
+        res.json(datos.reverse());
+      } catch (err) {
+        res.status(500).json({ error: "Error al obtener reporte de detecciones" });
+      }
+    });
+
+    // --- Últimas detecciones (para notificaciones) ---
+    app.get("/api/notificaciones", async (req, res) => {
+      try {
+        const ultimos = await Temperatura.find({
+          $or: [{ lluvia: true }, { humo: true }]
+        })
+          .sort({ fecha: -1 })
+          .limit(10);
+
+        const mensajes = ultimos.map((d) => ({
+          mensaje: d.lluvia ? "🌧️ Lluvia detectada" : d.humo ? "🔥 Humo detectado" : "",
+          fecha: d.fecha
+        }));
+
+        res.json(mensajes);
+      } catch (err) {
+        res.status(500).json({ error: "Error al obtener notificaciones" });
+      }
+    });
+    io.on("connection", (socket) => {
+      console.log("📡 Cliente conectado a WebSocket");
+    
+      const intervalId = setInterval(async () => {
+        const lastTemp = await Temperatura.findOne().sort({ fecha: -1 });
+        socket.emit("newTemperature", lastTemp);
+      }, 5000);
+    
+      socket.on("disconnect", () => {
+        console.log("❌ Cliente desconectado");
+        clearInterval(intervalId);
+      });
+    });
+    //MOVIL
+    app.post("/empleados/login", async (req, res) => {
+      const { correo, contrasenia } = req.body;
+    
+      if (!correo || !contrasenia) {
+        return res.status(400).json({ mensaje: "Faltan datos" });
+      }
+    
+      try {
+        pool.query("SELECT * FROM empleados WHERE correo = ?", [correo], async (err, results) => {
+          if (err) {
+            console.error("Error en login:", err);
+            return res.status(500).json({ mensaje: "Error en login" });
+          }
+    
+          if (results.length === 0) {
+            return res.status(401).json({ mensaje: "Empleado no encontrado" });
+          }
+    
+          const empleado = results[0];
+          const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
+    
+          if (!passwordMatch) {
+            return res.status(401).json({ mensaje: "Contraseña incorrecta" });
+          }
+    
+          const token = jwt.sign({ id: empleado.id, tipo: "empleado" }, process.env.JWT_SECRET || "secreto", {
+            expiresIn: "3h",
+          });
+    
+          // ✅ Eliminar sesiones anteriores (si existen)
+          pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
+            if (err) {
+              console.error("Error al limpiar sesiones anteriores:", err);
+            }
+    
+            // ✅ Guardar nueva sesión en tabla 'sesiones'
+            pool.query(
+              "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
+              [empleado.id, token],
+              (err) => {
+                if (err) {
+                  console.error("Error al guardar sesión de empleado:", err);
+                  return res.status(500).json({ mensaje: "Error al guardar sesión" });
+                }
+    
+                res.json({ token, tipo: "empleado", id: empleado.id });
+              }
+            );
+          });
+        });
+      } catch (error) {
+        console.error("Error en login:", error);
+        return res.status(500).json({ mensaje: "Error interno del servidor" });
+      }
+    });
+    // 🔐 Cerrar sesión para empleados (elimina sesión de la tabla)
+  app.post("/empleados/logout", async (req, res) => {
+    const { id, token } = req.body;
+
+    if (!id || !token) {
+      return res.status(400).json({ mensaje: "ID y token requeridos" });
+    }
+
+    try {
+      pool.query(
+        "DELETE FROM sesiones WHERE empleado_id = ? AND token = ?",
+        [id, token],
+        (err, result) => {
+          if (err) {
+            console.error("Error al cerrar sesión:", err);
+            return res.status(500).json({ mensaje: "Error al cerrar sesión" });
+          }
+
+          res.json({ mensaje: "Sesión de empleado cerrada correctamente" });
+        }
+      );
     } catch (error) {
-      console.error("Error en login:", error);
+      console.error("Error en logout:", error);
       return res.status(500).json({ mensaje: "Error interno del servidor" });
     }
   });
-  // 🔐 Cerrar sesión para empleados (elimina sesión de la tabla)
-app.post("/empleados/logout", async (req, res) => {
-  const { id, token } = req.body;
+  //Graficas del empleado
+  // Obtener datos por NumSer (para gráficas por empleado)
+  app.get("/api/sensores/:numser", async (req, res) => {
+    const { numser } = req.params;
+    try {
+      const datos = await Temperatura.find({ NumSer: numser }).sort({ fecha: -1 }).limit(10);
+      res.json(datos);
+    } catch (err) {
+      res.status(500).json({ error: "Error al obtener datos por NumSer" });
+    }
+  });
 
-  if (!id || !token) {
-    return res.status(400).json({ mensaje: "ID y token requeridos" });
-  }
-
-  try {
-    pool.query(
-      "DELETE FROM sesiones WHERE empleado_id = ? AND token = ?",
-      [id, token],
-      (err, result) => {
-        if (err) {
-          console.error("Error al cerrar sesión:", err);
-          return res.status(500).json({ mensaje: "Error al cerrar sesión" });
-        }
-
-        res.json({ mensaje: "Sesión de empleado cerrada correctamente" });
-      }
-    );
-  } catch (error) {
-    console.error("Error en logout:", error);
-    return res.status(500).json({ mensaje: "Error interno del servidor" });
-  }
-});
-
-  
-  
-  
-  
-// **Iniciar servidor**
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`✅ Servidor con Socket.IO corriendo en el puerto ${PORT}`);
-});
+    
+    
+    
+    
+  // **Iniciar servidor**
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`✅ Servidor con Socket.IO corriendo en el puerto ${PORT}`);
+  });
