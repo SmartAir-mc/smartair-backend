@@ -397,33 +397,47 @@ app.get("/empleados/:id_cliente", (req, res) => {
 app.post("/empleados", async (req, res) => {
   const { nombre, correo, NumSer, contrasenia, id_cliente, telefono } = req.body;
 
-  console.log("📥 Registrando empleado:");
-  console.log("Nombre:", nombre);
-  console.log("Correo:", correo);
-  console.log("NumSer:", NumSer);
-  console.log("Teléfono:", telefono);
-  console.log("ID del cliente:", id_cliente);
+  console.log("📥 Registrando empleado:", nombre, correo, NumSer);
 
-  // Verifica si el NumSer ya existe
-  db.query("SELECT * FROM empleados WHERE NumSer = ?", [NumSer], async (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+  if (!nombre || !correo || !NumSer || !contrasenia || !id_cliente) {
+    return res.status(400).json({ error: "Faltan datos obligatorios" });
+  }
 
-    if (results.length > 0) {
-      return res.status(400).json({ error: "Este Número de Serie ya está registrado." });
-    }
-
-    const hashedPassword = await bcrypt.hash(contrasenia, 10);
-
+  try {
+    // Verificar si ya existe nombre, correo o NumSer
     db.query(
-      "INSERT INTO empleados (nombre, correo, NumSer, contrasenia, id_cliente, telefono) VALUES (?, ?, ?, ?, ?, ?)",
-      [nombre, correo, NumSer, hashedPassword, id_cliente, telefono],
-      (err, result) => {
+      "SELECT * FROM empleados WHERE correo = ? OR nombre = ? OR NumSer = ?",
+      [correo, nombre, NumSer],
+      async (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: "Empleado registrado correctamente", id: result.insertId });
+
+        if (results.length > 0) {
+          const duplicados = results.map(r => {
+            if (r.correo === correo) return "correo";
+            if (r.nombre === nombre) return "nombre";
+            if (r.NumSer === NumSer) return "número de serie";
+          });
+          return res.status(400).json({ error: `Ya existe un empleado con el mismo ${duplicados.join(" y ")}` });
+        }
+
+        const hashedPassword = await bcrypt.hash(contrasenia, 10);
+
+        db.query(
+          "INSERT INTO empleados (nombre, correo, NumSer, contrasenia, id_cliente, telefono) VALUES (?, ?, ?, ?, ?, ?)",
+          [nombre, correo, NumSer, hashedPassword, id_cliente, telefono],
+          (err, result) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: "Empleado registrado correctamente", id: result.insertId });
+          }
+        );
       }
     );
-  });
+  } catch (error) {
+    console.error("❌ Error en registro:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
+
 
 // ✅ Actualizar empleado
 app.put("/empleados/:id", async (req, res) => {
@@ -1080,6 +1094,21 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
         clearInterval(intervalId);
       });
     });
+    app.get("/api/iot/datos/:numser", async (req, res) => {
+      const { numser } = req.params;
+      try {
+        const datos = await Temperatura.find({ NumSer: numser }).sort({ fecha: -1 }).limit(15);
+        const formateados = datos.map(d => ({
+          temperatura: d.temperatura,
+          humedad: d.humedad,
+          fecha: new Date(d.fecha).toLocaleTimeString()
+        }));
+        res.json(formateados.reverse());
+      } catch (err) {
+        res.status(500).json({ error: "Error al obtener datos por NumSer" });
+      }
+    });
+    
     //MOVIL
     app.post("/empleados/login", async (req, res) => {
       const { correo, contrasenia } = req.body;
