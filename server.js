@@ -1165,6 +1165,35 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
         return res.status(500).json({ mensaje: "Error interno del servidor" });
       }
     });
+    //comandos para abrir y cerrar
+    const comandosPendientes = {}; // 🔁 { "SMART-001": "abrir" }
+    app.post("/comando/:numser", (req, res) => {
+      const { numser } = req.params;
+      const { comando } = req.body;
+    
+      if (!comando) {
+        return res.status(400).json({ mensaje: "Comando faltante" });
+      }
+    
+      comandosPendientes[numser] = comando;
+      console.log(`🟨 Comando recibido para ${numser}: ${comando}`);
+      res.json({ mensaje: "Comando registrado" });
+    });
+    app.get("/estado/:numser", (req, res) => {
+      const { numser } = req.params;
+      const comando = comandosPendientes[numser];
+    
+      if (comando) {
+        delete comandosPendientes[numser]; // 🔁 Ya fue entregado
+        console.log(`📤 Comando entregado a ${numser}: ${comando}`);
+        return res.json({ comando });
+      }
+    
+      res.json({ comando: null }); // No hay comando pendiente
+    });
+    
+    
+
     // 🔐 Cerrar sesión para empleados (elimina sesión de la tabla)
   app.post("/empleados/logout", async (req, res) => {
     const { id, token } = req.body;
