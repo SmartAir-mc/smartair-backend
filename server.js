@@ -1111,34 +1111,66 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
     
     //MOVIL
     //MOVIL
-app.post("/empleados/login", async (req, res) => {
-  const { correo, contrasenia } = req.body;
-
-  if (!correo || !contrasenia) {
-    return res.status(400).json({ mensaje: "Faltan datos" });
-  }
-
-  try {
-    pool.query("SELECT * FROM empleados WHERE correo = ?", [correo], async (err, results) => {
-      if (err) {
-        console.error("Error en login:", err);
-        return res.status(500).json({ mensaje: "Error en login" });
+    app.post("/empleados/login", async (req, res) => {
+      const { correo, contrasenia } = req.body;
+    
+      if (!correo || !contrasenia) {
+        return res.status(400).json({ mensaje: "Faltan datos" });
       }
-
-      if (results.length === 0) {
-        return res.status(401).json({ mensaje: "Empleado no encontrado" });
+    
+      try {
+        pool.query("SELECT * FROM empleados WHERE correo = ?", [correo], async (err, results) => {
+          if (err) {
+            console.error("Error en login:", err);
+            return res.status(500).json({ mensaje: "Error en login" });
+          }
+    
+          if (results.length === 0) {
+            return res.status(401).json({ mensaje: "Empleado no encontrado" });
+          }
+    
+          const empleado = results[0];
+          const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
+    
+          if (!passwordMatch) {
+            return res.status(401).json({ mensaje: "Contraseña incorrecta" });
+          }
+    
+          const token = jwt.sign(
+            { id: empleado.id, tipo: "empleado" },
+            process.env.JWT_SECRET || "secreto",
+            { expiresIn: "3h" }
+          );
+    
+          pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
+            if (err) console.error("Error al limpiar sesiones anteriores:", err);
+    
+            pool.query(
+              "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
+              [empleado.id, token],
+              (err) => {
+                if (err) {
+                  console.error("Error al guardar sesión de empleado:", err);
+                  return res.status(500).json({ mensaje: "Error al guardar sesión" });
+                }
+    
+                // ✅ RESPUESTA con NumSer
+                res.json({
+                  token,
+                  tipo: "empleado",
+                  id: empleado.id,
+                  NumSer: empleado.NumSer
+                });
+              }
+            );
+          });
+        });
+      } catch (error) {
+        console.error("Error en login:", error);
+        return res.status(500).json({ mensaje: "Error interno del servidor" });
       }
-
-      const empleado = results[0];
-      const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
-
-      if (!passwordMatch) {
-        return res.status(401).json({ mensaje: "Contraseña incorrecta" });
-      }
-
-      const token = jwt.sign({ id: empleado.id, tipo: "empleado" }, process.env.JWT_SECRET || "secreto", {
-        expiresIn: "3h",
-      });
+    });
+    
 
       // ✅ Eliminar sesiones anteriores (si existen)
       pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
