@@ -1111,127 +1111,62 @@ app.get("/api/reportes/clientes-vista", (req, res) => {
     
     //MOVIL
     //MOVIL
-    app.post("/empleados/login", async (req, res) => {
+    app.post("/empleados/login", (req, res) => {
       const { correo, contrasenia } = req.body;
     
       if (!correo || !contrasenia) {
         return res.status(400).json({ mensaje: "Faltan datos" });
       }
     
-      try {
-        pool.query("SELECT * FROM empleados WHERE correo = ?", [correo], async (err, results) => {
-          if (err) {
-            console.error("Error en login:", err);
-            return res.status(500).json({ mensaje: "Error en login" });
-          }
-    
-          if (results.length === 0) {
-            return res.status(401).json({ mensaje: "Empleado no encontrado" });
-          }
-    
-          const empleado = results[0];
-          const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
-    
-          if (!passwordMatch) {
-            return res.status(401).json({ mensaje: "Contraseña incorrecta" });
-          }
-    
-          const token = jwt.sign(
-            { id: empleado.id, tipo: "empleado" },
-            process.env.JWT_SECRET || "secreto",
-            { expiresIn: "3h" }
-          );
-    
-          pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
-            if (err) console.error("Error al limpiar sesiones anteriores:", err);
-    
-            pool.query(
-              "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
-              [empleado.id, token],
-              (err) => {
-                if (err) {
-                  console.error("Error al guardar sesión de empleado:", err);
-                  return res.status(500).json({ mensaje: "Error al guardar sesión" });
-                }
-    
-                // ✅ RESPUESTA con NumSer
-                res.json({
-                  token,
-                  tipo: "empleado",
-                  id: empleado.id,
-                  NumSer: empleado.NumSer
-                });
-              }
-            );
-          });
-        });
-      } catch (error) {
-        console.error("Error en login:", error);
-        return res.status(500).json({ mensaje: "Error interno del servidor" });
-      }
-    });
-    
-
-      // ✅ Eliminar sesiones anteriores (si existen)
-      pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
+      pool.query("SELECT * FROM empleados WHERE correo = ?", [correo], async (err, results) => {
         if (err) {
-          console.error("Error al limpiar sesiones anteriores:", err);
+          console.error("Error en login:", err);
+          return res.status(500).json({ mensaje: "Error en login" });
         }
-
-        // ✅ Guardar nueva sesión en tabla 'sesiones'
-        pool.query(
-          "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
-          [empleado.id, token],
-          (err) => {
-            if (err) {
-              console.error("Error al guardar sesión de empleado:", err);
-              return res.status(500).json({ mensaje: "Error al guardar sesión" });
-            }
-
-            // ✅ RESPUESTA INCLUYENDO NumSer
-            res.json({
-              token,
-              tipo: "empleado",
-              id: empleado.id,
-              NumSer: empleado.NumSer // 👈 aquí lo devolvemos
-            });
-          }
+    
+        if (results.length === 0) {
+          return res.status(401).json({ mensaje: "Empleado no encontrado" });
+        }
+    
+        const empleado = results[0];
+        const passwordMatch = await bcrypt.compare(contrasenia, empleado.contrasenia);
+    
+        if (!passwordMatch) {
+          return res.status(401).json({ mensaje: "Contraseña incorrecta" });
+        }
+    
+        const token = jwt.sign(
+          { id: empleado.id, tipo: "empleado" },
+          process.env.JWT_SECRET || "secreto",
+          { expiresIn: "3h" }
         );
+    
+        pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
+          if (err) {
+            console.error("Error al limpiar sesiones anteriores:", err);
+          }
+    
+          pool.query(
+            "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
+            [empleado.id, token],
+            (err) => {
+              if (err) {
+                console.error("Error al guardar sesión de empleado:", err);
+                return res.status(500).json({ mensaje: "Error al guardar sesión" });
+              }
+    
+              res.json({
+                token,
+                tipo: "empleado",
+                id: empleado.id,
+                NumSer: empleado.NumSer,
+              });
+            }
+          );
+        });
       });
     });
-  } catch (error) {
-    console.error("Error en login:", error);
-    return res.status(500).json({ mensaje: "Error interno del servidor" });
-  }
-});
-
     
-          // ✅ Eliminar sesiones anteriores (si existen)
-          pool.query("DELETE FROM sesiones WHERE empleado_id = ?", [empleado.id], (err) => {
-            if (err) {
-              console.error("Error al limpiar sesiones anteriores:", err);
-            }
-    
-            // ✅ Guardar nueva sesión en tabla 'sesiones'
-            pool.query(
-              "INSERT INTO sesiones (empleado_id, token) VALUES (?, ?)",
-              [empleado.id, token],
-              (err) => {
-                if (err) {
-                  console.error("Error al guardar sesión de empleado:", err);
-                  return res.status(500).json({ mensaje: "Error al guardar sesión" });
-                }
-    
-                res.json({ token, tipo: "empleado", id: empleado.id });
-              }
-            );
-          });
-        });
-      } catch (error) {
-        console.error("Error en login:", error);
-        return res.status(500).json({ mensaje: "Error interno del servidor" });
-      }
-    });
     //comandos para abrir y cerrar
     const comandosPendientes = {}; // 🔁 { "SMART-001": "abrir" }
     app.post("/comando/:numser", (req, res) => {
